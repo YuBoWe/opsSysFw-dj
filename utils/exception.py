@@ -17,6 +17,12 @@ class NotFound(BarException):
     message = '找不到数据'
 
 
+# code小于100，前端配合跳转到登录页
+class NotAuthenticated(BarException):
+    code = 2
+    message = '没有登录过，请先登录'
+
+
 class InvalidToken(BarException):
     code = 5
     message = "登录无效，请重新登录"
@@ -29,7 +35,8 @@ class InvalidUsernameOrPassword(BarException):
 exc_map = {
     'DoesNotExist': NotFound,
     'InvalidToken': InvalidToken,
-    'AuthenticationFailed': InvalidUsernameOrPassword
+    'AuthenticationFailed': InvalidUsernameOrPassword,
+    'NotAuthenticated': NotAuthenticated
 }
 
 
