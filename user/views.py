@@ -1,20 +1,90 @@
 from django.views import View
-from django.http import HttpRequest, HttpResponse, HttpResponseForbidden
+from django.http import HttpRequest, HttpResponse, HttpResponseForbidden, Http404
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.models import User
 
 from utils.exception import NotFound
 from rest_framework.response import Response
 from rest_framework.request import Request
-from rest_framework.decorators import api_view, permission_classes
+from rest_framework.decorators import api_view, permission_classes, action
 from rest_framework.permissions import IsAuthenticated, IsAdminUser, BasePermission
 from rest_framework.views import APIView
 from django.contrib.auth.models import User, AnonymousUser
+from rest_framework.viewsets import ModelViewSet
+from .models import UserProfile
+from .serializers import UserSerializer
+from django_filters.rest_framework import DjangoFilterBackend
+from rest_framework.filters import SearchFilter
+from django.contrib.auth import get_user_model
+from utils.exception import InvalidPassword
 
 
 class IsSuperUser(BasePermission):
     def has_permission(self, request, view):
         return bool(request.user.is_superuser)
+
+
+class UserViewSet(ModelViewSet):
+    # queryset = UserProfile.objects.all()
+    queryset = get_user_model().objects.all()
+    serializer_class = UserSerializer
+    # filter_backends = [DjangoFilterBackend]
+    filterset_fields = ['username']
+    search_fields = ['username', 'email']
+
+    # 详情页禁止修改username，如果提供用户名，它就要验证用户名唯一性，且尝试修改用户名
+    def partial_update(self, request, *args, **kwargs):
+        request.data.pop('username', None)
+        request.data.pop('password', None)
+        request.data.pop('id', None)
+        request.data.pop('is_superuser', None)
+        return super().partial_update(request, *args, **kwargs)
+
+    def get_object(self):
+        if self.request.method.lower() != 'get':
+            pk = self.kwargs.get('pk')
+            if pk == 1 or pk == '1':
+                raise Http404
+        return super().get_object()
+
+    @action(['GET'], detail=False, url_path='whoami')
+    def whoami(self, request):
+        return Response({
+            'currentUser': {'username': request.user.username, 'id': request.user.id}
+        })
+
+    # 验证修改密码
+    @action(['POST'], detail=False)
+    def myselfChpwd(self, request):
+        user: UserProfile = request.user
+        # print(user.is_superuser, user.password, user.username, user.id)
+        serializer = UserSerializer(instance=user)
+        if UserSerializer.validate_password(serializer, data=request.data['password']):
+            if user.check_password(request.data['oldPassword']):
+                # print(user.password)
+                user.set_password(request.data['password'])
+                # print(user.password)
+                user.save()
+                return Response()
+            else:
+                raise InvalidPassword
+
+    # 管理员修改用户密码
+    @action(['POST'], detail=True, permission_classes=[IsSuperUser])
+    def adChpwd(self, request, pk=None):
+        # print(pk)
+        user = self.get_object()
+        serializer = UserSerializer(instance=user)
+        if UserSerializer.validate_password(serializer, data=request.data['password']):
+            if user.check_password(request.data['oldPassword']):
+                print(user.password)
+                user.set_password(request.data['password'])
+                print(user.password)
+                user.save()
+                return Response()
+            else:
+                raise InvalidPassword
+
 
 
 class MenuItem(dict):
@@ -72,8 +142,8 @@ def menulist_view(request: Request):
         i1.extend(i2, i3, i4)
         menulist.append(i1)
 
-    i5 = MenuItem(2, 'xx管理')
-    i6 = MenuItem(21, 'xx列表', '/cmbd')
+    i5 = MenuItem(2, '测试')
+    i6 = MenuItem(21, 'slot', '/TS')
     i5.extend(i6)
     menulist.append(i5)
 

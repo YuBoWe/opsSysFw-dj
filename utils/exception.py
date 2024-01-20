@@ -17,6 +17,21 @@ class NotFound(BarException):
     message = '找不到数据'
 
 
+class ValidationError(BarException):
+    code = 1001
+    message = '请设置强密码：包含至少一个大写字母、一个小写字母、一个数字、一个特殊字符'
+
+
+class PermissionDenied(BarException):
+    code = 1002
+    message = '无权限进行此操作'
+
+
+class InvalidPassword(BarException):
+    code = 1003
+    message = '原密码错误请检查后重新输入'
+
+
 # code小于100，前端配合跳转到登录页
 class NotAuthenticated(BarException):
     code = 2
@@ -32,11 +47,15 @@ class InvalidUsernameOrPassword(BarException):
     code = 1
     message = "Wrong user name or password,Please log in again!"
 # 'DRF异常名'：异常类
+
+
 exc_map = {
     'DoesNotExist': NotFound,
     'InvalidToken': InvalidToken,
     'AuthenticationFailed': InvalidUsernameOrPassword,
-    'NotAuthenticated': NotAuthenticated
+    'NotAuthenticated': NotAuthenticated,
+    'ValidationError': ValidationError,
+    'PermissionDenied': PermissionDenied
 }
 
 
