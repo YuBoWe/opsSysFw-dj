@@ -1,18 +1,18 @@
 from django.views import View
 from django.http import HttpRequest, HttpResponse, HttpResponseForbidden, Http404
 from django.contrib.auth import authenticate, login, logout
-from django.contrib.auth.models import User
+from django.contrib.auth.models import User, ContentType, Group, Permission
 
 from utils.exception import NotFound
 from rest_framework.response import Response
 from rest_framework.request import Request
 from rest_framework.decorators import api_view, permission_classes, action
-from rest_framework.permissions import IsAuthenticated, IsAdminUser, BasePermission
+from rest_framework.permissions import IsAuthenticated, IsAdminUser, BasePermission, DjangoModelPermissions
 from rest_framework.views import APIView
 from django.contrib.auth.models import User, AnonymousUser
-from rest_framework.viewsets import ModelViewSet
+from rest_framework.viewsets import ModelViewSet, ReadOnlyModelViewSet
 from .models import UserProfile
-from .serializers import UserSerializer
+from .serializers import UserSerializer, PermSerializer, GroupSerializer
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.filters import SearchFilter
 from django.contrib.auth import get_user_model
@@ -22,6 +22,32 @@ from utils.exception import InvalidPassword
 class IsSuperUser(BasePermission):
     def has_permission(self, request, view):
         return bool(request.user.is_superuser)
+
+
+_exclude_contenttypes = [
+    c.id for c in ContentType.objects.filter(model__in=[
+        'logentry', 'group', 'permission', 'contenttype', 'session'
+    ])
+]
+
+
+class GroupViewSet(ModelViewSet):
+    queryset = Group.objects.all()
+    serializer_class = GroupSerializer
+    search_fields = ['name']
+
+    @action(['GET'], detail=True)
+    def perms(self, request, pk):
+        obj = self.get_object()
+        data = GroupSerializer(obj).data
+        data['allPerms'] = list(PermViewSet.queryset.values('id', 'name'))
+        return Response(data)
+
+
+class PermViewSet(ModelViewSet):
+    queryset = Permission.objects.exclude(content_type__in=_exclude_contenttypes)
+    serializer_class = PermSerializer
+    search_fields = ['name']
 
 
 class UserViewSet(ModelViewSet):
@@ -47,7 +73,21 @@ class UserViewSet(ModelViewSet):
                 raise Http404
         return super().get_object()
 
-    @action(['GET'], detail=False, url_path='whoami')
+    @action(['GET'], detail=True)
+    def roles(self, request, pk):
+        user = self.get_object()
+        data = UserSerializer(instance=user).data
+        data['roles'] = [p.get('id') for p in user.groups.values('id')]
+        data['roleList'] = Group.objects.values('id', 'name')
+        return Response(data)
+
+    @roles.mapping.patch
+    def setRoles(self, request, pk):
+        user = self.get_object()
+        user.groups.set(request.data.get('group_list'))
+        return Response()
+
+    @action(['GET'], detail=False, url_path='whoami', permission_classes=[IsAuthenticated])
     def whoami(self, request):
         return Response({
             'currentUser': {'username': request.user.username, 'id': request.user.id}
@@ -77,14 +117,11 @@ class UserViewSet(ModelViewSet):
         serializer = UserSerializer(instance=user)
         if UserSerializer.validate_password(serializer, data=request.data['password']):
             if user.check_password(request.data['oldPassword']):
-                print(user.password)
                 user.set_password(request.data['password'])
-                print(user.password)
                 user.save()
                 return Response()
             else:
                 raise InvalidPassword
-
 
 
 class MenuItem(dict):
@@ -107,8 +144,8 @@ class MenuItem(dict):
         return self[item]
 
 @api_view(['get'])
-# @permission_classes([IsAuthenticated])
-@permission_classes([])  # 无权限要求
+@permission_classes([IsAuthenticated])
+# @permission_classes([])  # 无权限要求
 # @permission_classes([IsSuperUser])
 def menulist_view(request: Request):
     # u = request.POST.get('username')
@@ -132,12 +169,12 @@ def menulist_view(request: Request):
     #     return HttpResponseForbidden()
     menulist = []
     # if request.user.is_superuser:
-    if request.user:
+    if request.user.is_superuser:
 
         i1 = MenuItem(1, '用户管理')
         i2 = MenuItem(11, '用户列表', '/users')
         i3 = MenuItem(12, '角色列表', '/users/roles')
-        i4 = MenuItem(13, '权限列表', '/user/perms')
+        i4 = MenuItem(13, '权限列表', '/users/perms')
         # i1.append(i2).append(i3).append(i4)
         i1.extend(i2, i3, i4)
         menulist.append(i1)

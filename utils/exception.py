@@ -19,7 +19,7 @@ class NotFound(BarException):
 
 class ValidationError(BarException):
     code = 1001
-    message = '请设置强密码：包含至少一个大写字母、一个小写字母、一个数字、一个特殊字符'
+    message = '验证失败'
 
 
 class PermissionDenied(BarException):
@@ -30,6 +30,11 @@ class PermissionDenied(BarException):
 class InvalidPassword(BarException):
     code = 1003
     message = '原密码错误请检查后重新输入'
+
+
+class MethodNotAllowed(BarException):
+    code = 1004
+    message = '方法不被允许'
 
 
 # code小于100，前端配合跳转到登录页
@@ -55,7 +60,8 @@ exc_map = {
     'AuthenticationFailed': InvalidUsernameOrPassword,
     'NotAuthenticated': NotAuthenticated,
     'ValidationError': ValidationError,
-    'PermissionDenied': PermissionDenied
+    'PermissionDenied': PermissionDenied,
+    'MethodNotAllowed': MethodNotAllowed
 }
 
 

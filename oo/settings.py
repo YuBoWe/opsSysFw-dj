@@ -161,7 +161,8 @@ REST_FRAMEWORK = {
         'rest_framework_simplejwt.authentication.JWTAuthentication',
     ],
     'DEFAULT_PERMISSION_CLASSES': [
-        'rest_framework.permissions.IsAuthenticated'
+        'rest_framework.permissions.IsAuthenticated',
+        'utils.MyModelPermissions.MyModelPermissions'
     ],
     'EXCEPTION_HANDLER': 'utils.exception.global_exception_handler',
     'DEFAULT_PAGINATION_CLASS': 'utils.pagination.UserListPagination',
